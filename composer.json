@@ -1,0 +1,18 @@
+{
+  "name": "gameplayjdk/git-remote-update",
+  "description": "A tool for running `git remote update` on multiple directories.",
+  "type": "project",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "GameplayJDK",
+      "email": "github@gameplayjdk.de"
+    }
+  ],
+  "minimum-stability": "stable",
+  "require": {
+    "php": ">=7.1",
+    "symfony/console": "^5.0",
+    "ext-json": "*"
+  }
+}
