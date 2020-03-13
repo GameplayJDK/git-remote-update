@@ -17,22 +17,30 @@
  * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-// INFO: The single command application is documented here:
-// https://symfony.com/doc/current/components/console/single_command_tool.html
+namespace App\Console\Helper;
 
-use App\Command\GitRemoteUpdateCommand;
-use App\Console\Helper\FormatterHelper;
-use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Helper\FormatterHelper as FormatterHelperBase;
 
-require dirname(__DIR__) . '/vendor/autoload.php';
+/**
+ * Class FormatterHelper
+ * @package App\Console\Helper
+ */
+class FormatterHelper extends FormatterHelperBase
+{
+    /**
+     * @param string $section
+     * @param string|array $messages
+     * @param string $style
+     * @return string
+     */
+    public function formatBlockSection(string $section, $messages, string $style = 'info'): string
+    {
+        if (!is_array($messages)) {
+            $messages = [$messages];
+        }
 
-// TODO: Maybe a bit of unit-testing? But on the other hand, this is just a single-command app, so we'll see..
-
-$path = dirname(__DIR__) . '/configuration.json';
-$command = new GitRemoteUpdateCommand($path);
-$application = new Application();
-$application->getHelperSet()
-    ->set(new FormatterHelper());
-$application->add($command);
-$application->setDefaultCommand($command->getName(), true);
-$application->run();
+        return implode("\n", array_map(function (string $message) use ($section, $style): string {
+            return $this->formatSection($section, $message, $style);
+        }, $messages));
+    }
+}

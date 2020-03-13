@@ -19,6 +19,7 @@
 
 namespace App\Command;
 
+use App\Console\Helper\FormatterHelper;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -42,6 +43,11 @@ class GitRemoteUpdateCommand extends Command
      * @var string|null
      */
     private $defaultPath;
+
+    /**
+     * @var FormatterHelper
+     */
+    private $formatter;
 
     /**
      * GitRemoteUpdateCommand constructor.
@@ -71,23 +77,31 @@ class GitRemoteUpdateCommand extends Command
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        $this->setFormatter();
+
         /** @var string|null $path */
         $path = $input->getArgument('path');
 
+        // If this happens, I really don't know what went wrong here. ／人◕ __ ◕人＼
         if (null === $path) {
-            $output->writeln([
-                '', "<error>Could not read configuration file at 'null'!</error>",
-                '', "<error>The file path was neither given as argument nor as property.</error>",
-            ]);
+            $output->writeln(
+                $this->formatter->formatBlock([
+                    'Unable to read the configuration file!',
+                    'The file path was neither given as argument nor as property.',
+                ], 'error')
+            );
 
             return 1;
         }
 
+        // There must be something wrong with permissions! (/¯◡ ‿ ◡)/¯ ~ ┻━┻
         if (!is_readable($path)) {
-            $output->writeln([
-                '', "<error>Could not read configuration file at '$path'!</error>",
-                '', "<error>The file does not exist or is not readable.</error>",
-            ]);
+            $output->writeln(
+                $this->formatter->formatBlock([
+                    'Unable to read the configuration file!',
+                    "The file either does not exist at '{$path}' or is not readable.",
+                ], 'error')
+            );
 
             return 1;
         }
@@ -95,11 +109,14 @@ class GitRemoteUpdateCommand extends Command
         /** @var string|null $json */
         $json = file_get_contents($path) ?: null;
 
+        // Something else must be wrong with the file. (⊙＿⊙')
         if (null === $json) {
-            $output->writeln([
-                '', "<error>Could not read configuration file at '$path'!</error>",
-                '', "<error>The file content is invalid or could not be read.</error>",
-            ]);
+            $output->writeln(
+                $this->formatter->formatBlock([
+                    'Unable to read the configuration file!',
+                    'The file content is invalid or could not be read.',
+                ], 'error')
+            );
 
             return 1;
         }
@@ -107,29 +124,37 @@ class GitRemoteUpdateCommand extends Command
         /** @var array|null $data */
         $data = json_decode($json, true) ?: null;
 
+        // Yes, you came this far, but know your json, dude. O=('-'Q)
         if (null === $data || JSON_ERROR_NONE !== json_last_error()) {
             $lastErrorMessage = json_last_error_msg();
 
-            $output->writeln([
-                '', "<error>Could not decode json from configuration file at '$path'!</error>",
-                '', "<error>The file content is either empty, invalid json or contains errors.</error>",
-                '', "<error>The last error message was: $lastErrorMessage.</error>",
-            ]);
+            $output->writeln(
+                $this->formatter->formatBlock([
+                    'Unable to decode json from the configuration file!',
+                    'The file content likely to contain errors due to invalid json.',
+                    "The last error message was: '{$lastErrorMessage}'.",
+                ], 'error')
+            );
 
             return 1;
         }
 
+        // Well, this would be stupid... (≧︿≦)
         if (!is_array($data)) {
-            $output->writeln([
-                '', "<error>Could not decode json from configuration file at '$path'!</error>",
-                '', "<error>The json content is not an array.</error>",
-            ]);
+            $output->writeln(
+                $this->formatter->formatBlock([
+                    'Unable to process data from the configuration file!',
+                    'The json content is not an array.',
+                ], 'error')
+            );
 
             return 1;
         }
 
+        // Won't need labels from here on. Never wanted this label feature anyway, bro. (꒡⌓꒡)
         $data = array_values($data);
 
+        // Clean up after ourselves. (⌐⊙_⊙)
         unset($path);
 
         /** @var array $outputOfShell */
@@ -137,45 +162,73 @@ class GitRemoteUpdateCommand extends Command
 
         /** @var string $path */
         foreach ($data as $path) {
+            // This seems kind of wrong, does it? (눈_눈)
             if (!is_string($path)) {
-                $output->writeln([
-                    '', "<error>The given path is no string: '$path'!</error>",
-                ]);
+                $output->writeln(
+                    $this->formatter->formatSection('INFO', "The given path is no string: '{$path}'! Skipping...", 'info')
+                );
 
                 continue;
             }
 
+            // You screwed up the configuration, obviously. ε(´סּ︵סּ`)з
             if (!is_dir($path)) {
-                $output->writeln([
-                    '', "<error>The given path does not exist: '$path'!</error>",
-                ]);
+                $output->writeln(
+                    $this->formatter->formatSection('INFO', "The given path does not exist: '{$path}'! Skipping...", 'info')
+                );
 
                 continue;
             }
 
-            $outputOfShell[$path] = `cd $path && git remote update` ?: null;
+            $outputOfShell[$path] = `cd {$path} && git remote update` ?: null;
         }
 
-        /**
-         * I just wanted to use a generator function, so why not? ¯\_(ツ)_/¯
-         *
-         * @param array $outputOfShell
-         * @return iterable
-         */
-        function generate(array $outputOfShell): iterable
-        {
-            yield from array_map(function (string $key, ?string $value): string {
-                if (null === $value) {
-                    return "<error>Output of command execution in '$key': null</error>";
-                }
-
-                return "<info>Output of command execution in '$key': $value</info>";
-            }, array_keys($outputOfShell), array_values($outputOfShell));
-        }
-
-        $output->writeln(generate($outputOfShell));
+        // Finish by yelling out the result. ┬──┬ /(ò_ó/)
+        $output->writeln(
+            $this->generate($outputOfShell)
+        );
 
         return 0;
+    }
+
+    private function setFormatter(): void
+    {
+        $this->formatter = $this->getHelper('formatter');
+    }
+
+    /**
+     * @param array $outputOfShell
+     * @return iterable
+     */
+    private function generate(array $outputOfShell): iterable
+    {
+        // I just wanted to use a generator function, so why not? ¯\_(ツ)_/¯
+        yield from array_map(function (string $key, ?string $value): string {
+            // This will happen, when the value is null. (ㆆ-ㆆ)
+            if (null === $value) {
+                return $this->formatter
+                    ->formatBlockSection('ERR', [
+                        "Output of command execution in '{$key}':",
+                        'null',
+                    ], 'error');
+            }
+
+            // So, if we only hat Php 7.4, we could simply use the spread operator... Would be much nicer to the eye
+            // than this! And I still want to use the argument unpacking! ⊂(◉‿◉)つ
+            $messageArray = explode("\n", $value);
+            array_unshift($messageArray, ...[
+                "Output of command execution in '{$key}':",
+            ]);
+
+            // TODO: In 7.4 use the spread operator like this:
+//            $messageArray = [
+//                "Output of command execution in '{$key}':",
+//                ...$messageArray,
+//            ];
+
+            return $this->formatter
+                ->formatBlockSection('INFO', $messageArray, 'info');
+        }, array_keys($outputOfShell), array_values($outputOfShell));
     }
 
     /**
